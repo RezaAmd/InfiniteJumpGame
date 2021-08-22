@@ -1,2 +1,2 @@
 # Infinite Jump Game
-Infinite jump game in html, js language.
+Infinite jump game in java script language.
