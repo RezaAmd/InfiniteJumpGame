@@ -1,0 +1,16 @@
+html, input, label {
+    font-family: "IranSans" !important;
+}
+
+#start_btn {
+    color: #ffffff;
+    background: #17aae3;
+    border-radius: 0.34rem;
+    border: 1px solid #18aae3;
+}
+
+#start_btn:active {
+    color: #ffffff;
+    background: #1a85af;
+    border: 1px solid #21a3d6;
+}
