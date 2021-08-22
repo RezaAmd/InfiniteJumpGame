@@ -15218,6 +15218,389 @@ cr.system_object.prototype.loadFromJSON = function (o)
 	};
 })();
 cr.shaders = {};
+cr.shaders["lighten"] = {src: ["varying mediump vec2 vTex;",
+"uniform lowp sampler2D samplerFront;",
+"uniform lowp sampler2D samplerBack;",
+"uniform mediump vec2 destStart;",
+"uniform mediump vec2 destEnd;",
+"void main(void)",
+"{",
+"lowp vec4 front = texture2D(samplerFront, vTex);",
+"front.rgb /= front.a;",
+"lowp vec4 back = texture2D(samplerBack, mix(destStart, destEnd, vTex));",
+"back.rgb /= back.a;",
+"front.rgb = max(front.rgb, back.rgb) * front.a;",
+"gl_FragColor = front * back.a;",
+"}"
+].join("\n"),
+	extendBoxHorizontal: 0,
+	extendBoxVertical: 0,
+	crossSampling: true,
+	preservesOpaqueness: false,
+	animated: false,
+	parameters: [] }
+cr.shaders["multiply"] = {src: ["varying mediump vec2 vTex;",
+"uniform lowp sampler2D samplerFront;",
+"uniform lowp sampler2D samplerBack;",
+"uniform mediump vec2 destStart;",
+"uniform mediump vec2 destEnd;",
+"void main(void)",
+"{",
+"lowp vec4 front = texture2D(samplerFront, vTex);",
+"lowp vec4 back = texture2D(samplerBack, mix(destStart, destEnd, vTex));",
+"front *= back;",
+"gl_FragColor = front;",
+"}"
+].join("\n"),
+	extendBoxHorizontal: 0,
+	extendBoxVertical: 0,
+	crossSampling: true,
+	preservesOpaqueness: false,
+	animated: false,
+	parameters: [] }
+cr.shaders["overlay"] = {src: ["precision mediump float;",
+"varying mediump vec2 vTex;",
+"uniform lowp sampler2D samplerFront;",
+"uniform lowp sampler2D samplerBack;",
+"uniform mediump vec2 destStart;",
+"uniform mediump vec2 destEnd;",
+"void main(void)",
+"{",
+"lowp vec4 front = texture2D(samplerFront, vTex);",
+"lowp vec4 back = texture2D(samplerBack, mix(destStart, destEnd, vTex));",
+"front.r = back.r < 0.5 ? 2.0 * back.r * front.r : 2.0 * (front.r + back.r * front.a - back.r * front.r) - front.a;",
+"front.g = back.g < 0.5 ? 2.0 * back.g * front.g : 2.0 * (front.g + back.g * front.a - back.g * front.g) - front.a;",
+"front.b = back.b < 0.5 ? 2.0 * back.b * front.b : 2.0 * (front.b + back.b * front.a - back.b * front.b) - front.a;",
+"front *= back.a;",
+"gl_FragColor = front;",
+"}"
+].join("\n"),
+	extendBoxHorizontal: 0,
+	extendBoxVertical: 0,
+	crossSampling: true,
+	preservesOpaqueness: false,
+	animated: false,
+	parameters: [] }
+;
+;
+cr.plugins_.AJAX = function(runtime)
+{
+	this.runtime = runtime;
+};
+(function ()
+{
+	var isNWjs = false;
+	var path = null;
+	var fs = null;
+	var nw_appfolder = "";
+	var pluginProto = cr.plugins_.AJAX.prototype;
+	pluginProto.Type = function(plugin)
+	{
+		this.plugin = plugin;
+		this.runtime = plugin.runtime;
+	};
+	var typeProto = pluginProto.Type.prototype;
+	typeProto.onCreate = function()
+	{
+	};
+	pluginProto.Instance = function(type)
+	{
+		this.type = type;
+		this.runtime = type.runtime;
+		this.lastData = "";
+		this.curTag = "";
+		this.progress = 0;
+		this.timeout = -1;
+		isNWjs = this.runtime.isNWjs;
+		if (isNWjs)
+		{
+			path = require("path");
+			fs = require("fs");
+			var process = window["process"] || nw["process"];
+			nw_appfolder = path["dirname"](process["execPath"]) + "\\";
+		}
+	};
+	var instanceProto = pluginProto.Instance.prototype;
+	var theInstance = null;
+	window["C2_AJAX_DCSide"] = function (event_, tag_, param_)
+	{
+		if (!theInstance)
+			return;
+		if (event_ === "success")
+		{
+			theInstance.curTag = tag_;
+			theInstance.lastData = param_;
+			theInstance.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnAnyComplete, theInstance);
+			theInstance.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnComplete, theInstance);
+		}
+		else if (event_ === "error")
+		{
+			theInstance.curTag = tag_;
+			theInstance.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnAnyError, theInstance);
+			theInstance.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnError, theInstance);
+		}
+		else if (event_ === "progress")
+		{
+			theInstance.progress = param_;
+			theInstance.curTag = tag_;
+			theInstance.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnProgress, theInstance);
+		}
+	};
+	instanceProto.onCreate = function()
+	{
+		theInstance = this;
+	};
+	instanceProto.saveToJSON = function ()
+	{
+		return { "lastData": this.lastData };
+	};
+	instanceProto.loadFromJSON = function (o)
+	{
+		this.lastData = o["lastData"];
+		this.curTag = "";
+		this.progress = 0;
+	};
+	var next_request_headers = {};
+	var next_override_mime = "";
+	instanceProto.doRequest = function (tag_, url_, method_, data_)
+	{
+		if (this.runtime.isDirectCanvas)
+		{
+			AppMobi["webview"]["execute"]('C2_AJAX_WebSide("' + tag_ + '", "' + url_ + '", "' + method_ + '", ' + (data_ ? '"' + data_ + '"' : "null") + ');');
+			return;
+		}
+		var self = this;
+		var request = null;
+		var doErrorFunc = function ()
+		{
+			self.curTag = tag_;
+			self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnAnyError, self);
+			self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnError, self);
+		};
+		var errorFunc = function ()
+		{
+			if (isNWjs)
+			{
+				var filepath = nw_appfolder + url_;
+				if (fs["existsSync"](filepath))
+				{
+					fs["readFile"](filepath, {"encoding": "utf8"}, function (err, data) {
+						if (err)
+						{
+							doErrorFunc();
+							return;
+						}
+						self.curTag = tag_;
+						self.lastData = data.replace(/\r\n/g, "\n")
+						self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnAnyComplete, self);
+						self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnComplete, self);
+					});
+				}
+				else
+					doErrorFunc();
+			}
+			else
+				doErrorFunc();
+		};
+		var progressFunc = function (e)
+		{
+			if (!e["lengthComputable"])
+				return;
+			self.progress = e.loaded / e.total;
+			self.curTag = tag_;
+			self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnProgress, self);
+		};
+		try
+		{
+			if (this.runtime.isWindowsPhone8)
+				request = new ActiveXObject("Microsoft.XMLHTTP");
+			else
+				request = new XMLHttpRequest();
+			request.onreadystatechange = function()
+			{
+				if (request.readyState === 4)
+				{
+					self.curTag = tag_;
+					if (request.responseText)
+						self.lastData = request.responseText.replace(/\r\n/g, "\n");		// fix windows style line endings
+					else
+						self.lastData = "";
+					if (request.status >= 400)
+					{
+						self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnAnyError, self);
+						self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnError, self);
+					}
+					else
+					{
+						if ((!isNWjs || self.lastData.length) && !(!isNWjs && request.status === 0 && !self.lastData.length))
+						{
+							self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnAnyComplete, self);
+							self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnComplete, self);
+						}
+					}
+				}
+			};
+			if (!this.runtime.isWindowsPhone8)
+			{
+				request.onerror = errorFunc;
+				request.ontimeout = errorFunc;
+				request.onabort = errorFunc;
+				request["onprogress"] = progressFunc;
+			}
+			request.open(method_, url_);
+			if (!this.runtime.isWindowsPhone8)
+			{
+				if (this.timeout >= 0 && typeof request["timeout"] !== "undefined")
+					request["timeout"] = this.timeout;
+			}
+			try {
+				request.responseType = "text";
+			} catch (e) {}
+			if (data_)
+			{
+				if (request["setRequestHeader"] && !next_request_headers.hasOwnProperty("Content-Type"))
+				{
+					request["setRequestHeader"]("Content-Type", "application/x-www-form-urlencoded");
+				}
+			}
+			if (request["setRequestHeader"])
+			{
+				var p;
+				for (p in next_request_headers)
+				{
+					if (next_request_headers.hasOwnProperty(p))
+					{
+						try {
+							request["setRequestHeader"](p, next_request_headers[p]);
+						}
+						catch (e) {}
+					}
+				}
+				next_request_headers = {};
+			}
+			if (next_override_mime && request["overrideMimeType"])
+			{
+				try {
+					request["overrideMimeType"](next_override_mime);
+				}
+				catch (e) {}
+				next_override_mime = "";
+			}
+			if (data_)
+				request.send(data_);
+			else
+				request.send();
+		}
+		catch (e)
+		{
+			errorFunc();
+		}
+	};
+	function Cnds() {};
+	Cnds.prototype.OnComplete = function (tag)
+	{
+		return cr.equals_nocase(tag, this.curTag);
+	};
+	Cnds.prototype.OnAnyComplete = function (tag)
+	{
+		return true;
+	};
+	Cnds.prototype.OnError = function (tag)
+	{
+		return cr.equals_nocase(tag, this.curTag);
+	};
+	Cnds.prototype.OnAnyError = function (tag)
+	{
+		return true;
+	};
+	Cnds.prototype.OnProgress = function (tag)
+	{
+		return cr.equals_nocase(tag, this.curTag);
+	};
+	pluginProto.cnds = new Cnds();
+	function Acts() {};
+	Acts.prototype.Request = function (tag_, url_)
+	{
+		var self = this;
+		if (this.runtime.isWKWebView && !this.runtime.isAbsoluteUrl(url_))
+		{
+			this.runtime.fetchLocalFileViaCordovaAsText(url_,
+			function (str)
+			{
+				self.curTag = tag_;
+				self.lastData = str.replace(/\r\n/g, "\n");		// fix windows style line endings
+				self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnAnyComplete, self);
+				self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnComplete, self);
+			},
+			function (err)
+			{
+				self.curTag = tag_;
+				self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnAnyError, self);
+				self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnError, self);
+			});
+		}
+		else
+		{
+			this.doRequest(tag_, url_, "GET");
+		}
+	};
+	Acts.prototype.RequestFile = function (tag_, file_)
+	{
+		var self = this;
+		if (this.runtime.isWKWebView)
+		{
+			this.runtime.fetchLocalFileViaCordovaAsText(file_,
+			function (str)
+			{
+				self.curTag = tag_;
+				self.lastData = str.replace(/\r\n/g, "\n");		// fix windows style line endings
+				self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnAnyComplete, self);
+				self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnComplete, self);
+			},
+			function (err)
+			{
+				self.curTag = tag_;
+				self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnAnyError, self);
+				self.runtime.trigger(cr.plugins_.AJAX.prototype.cnds.OnError, self);
+			});
+		}
+		else
+		{
+			this.doRequest(tag_, file_, "GET");
+		}
+	};
+	Acts.prototype.Post = function (tag_, url_, data_, method_)
+	{
+		this.doRequest(tag_, url_, method_, data_);
+	};
+	Acts.prototype.SetTimeout = function (t)
+	{
+		this.timeout = t * 1000;
+	};
+	Acts.prototype.SetHeader = function (n, v)
+	{
+		next_request_headers[n] = v;
+	};
+	Acts.prototype.OverrideMIMEType = function (m)
+	{
+		next_override_mime = m;
+	};
+	pluginProto.acts = new Acts();
+	function Exps() {};
+	Exps.prototype.LastData = function (ret)
+	{
+		ret.set_string(this.lastData);
+	};
+	Exps.prototype.Progress = function (ret)
+	{
+		ret.set_float(this.progress);
+	};
+	Exps.prototype.Tag = function (ret)
+	{
+		ret.set_string(this.curTag);
+	};
+	pluginProto.exps = new Exps();
+}());
 ;
 ;
 cr.plugins_.Button = function(runtime)
@@ -17718,6 +18101,204 @@ cr.plugins_.Text = function(runtime)
 }());
 ;
 ;
+cr.plugins_.TiledBg = function(runtime)
+{
+	this.runtime = runtime;
+};
+(function ()
+{
+	var pluginProto = cr.plugins_.TiledBg.prototype;
+	pluginProto.Type = function(plugin)
+	{
+		this.plugin = plugin;
+		this.runtime = plugin.runtime;
+	};
+	var typeProto = pluginProto.Type.prototype;
+	typeProto.onCreate = function()
+	{
+		if (this.is_family)
+			return;
+		this.texture_img = new Image();
+		this.texture_img.cr_filesize = this.texture_filesize;
+		this.runtime.waitForImageLoad(this.texture_img, this.texture_file);
+		this.pattern = null;
+		this.webGL_texture = null;
+	};
+	typeProto.onLostWebGLContext = function ()
+	{
+		if (this.is_family)
+			return;
+		this.webGL_texture = null;
+	};
+	typeProto.onRestoreWebGLContext = function ()
+	{
+		if (this.is_family || !this.instances.length)
+			return;
+		if (!this.webGL_texture)
+		{
+			this.webGL_texture = this.runtime.glwrap.loadTexture(this.texture_img, true, this.runtime.linearSampling, this.texture_pixelformat);
+		}
+		var i, len;
+		for (i = 0, len = this.instances.length; i < len; i++)
+			this.instances[i].webGL_texture = this.webGL_texture;
+	};
+	typeProto.loadTextures = function ()
+	{
+		if (this.is_family || this.webGL_texture || !this.runtime.glwrap)
+			return;
+		this.webGL_texture = this.runtime.glwrap.loadTexture(this.texture_img, true, this.runtime.linearSampling, this.texture_pixelformat);
+	};
+	typeProto.unloadTextures = function ()
+	{
+		if (this.is_family || this.instances.length || !this.webGL_texture)
+			return;
+		this.runtime.glwrap.deleteTexture(this.webGL_texture);
+		this.webGL_texture = null;
+	};
+	typeProto.preloadCanvas2D = function (ctx)
+	{
+		ctx.drawImage(this.texture_img, 0, 0);
+	};
+	pluginProto.Instance = function(type)
+	{
+		this.type = type;
+		this.runtime = type.runtime;
+	};
+	var instanceProto = pluginProto.Instance.prototype;
+	instanceProto.onCreate = function()
+	{
+		this.visible = (this.properties[0] === 0);							// 0=visible, 1=invisible
+		this.rcTex = new cr.rect(0, 0, 0, 0);
+		this.has_own_texture = false;										// true if a texture loaded in from URL
+		this.texture_img = this.type.texture_img;
+		if (this.runtime.glwrap)
+		{
+			this.type.loadTextures();
+			this.webGL_texture = this.type.webGL_texture;
+		}
+		else
+		{
+			if (!this.type.pattern)
+				this.type.pattern = this.runtime.ctx.createPattern(this.type.texture_img, "repeat");
+			this.pattern = this.type.pattern;
+		}
+	};
+	instanceProto.afterLoad = function ()
+	{
+		this.has_own_texture = false;
+		this.texture_img = this.type.texture_img;
+	};
+	instanceProto.onDestroy = function ()
+	{
+		if (this.runtime.glwrap && this.has_own_texture && this.webGL_texture)
+		{
+			this.runtime.glwrap.deleteTexture(this.webGL_texture);
+			this.webGL_texture = null;
+		}
+	};
+	instanceProto.draw = function(ctx)
+	{
+		ctx.globalAlpha = this.opacity;
+		ctx.save();
+		ctx.fillStyle = this.pattern;
+		var myx = this.x;
+		var myy = this.y;
+		if (this.runtime.pixel_rounding)
+		{
+			myx = Math.round(myx);
+			myy = Math.round(myy);
+		}
+		var drawX = -(this.hotspotX * this.width);
+		var drawY = -(this.hotspotY * this.height);
+		var offX = drawX % this.texture_img.width;
+		var offY = drawY % this.texture_img.height;
+		if (offX < 0)
+			offX += this.texture_img.width;
+		if (offY < 0)
+			offY += this.texture_img.height;
+		ctx.translate(myx, myy);
+		ctx.rotate(this.angle);
+		ctx.translate(offX, offY);
+		ctx.fillRect(drawX - offX,
+					 drawY - offY,
+					 this.width,
+					 this.height);
+		ctx.restore();
+	};
+	instanceProto.drawGL_earlyZPass = function(glw)
+	{
+		this.drawGL(glw);
+	};
+	instanceProto.drawGL = function(glw)
+	{
+		glw.setTexture(this.webGL_texture);
+		glw.setOpacity(this.opacity);
+		var rcTex = this.rcTex;
+		rcTex.right = this.width / this.texture_img.width;
+		rcTex.bottom = this.height / this.texture_img.height;
+		var q = this.bquad;
+		if (this.runtime.pixel_rounding)
+		{
+			var ox = Math.round(this.x) - this.x;
+			var oy = Math.round(this.y) - this.y;
+			glw.quadTex(q.tlx + ox, q.tly + oy, q.trx + ox, q.try_ + oy, q.brx + ox, q.bry + oy, q.blx + ox, q.bly + oy, rcTex);
+		}
+		else
+			glw.quadTex(q.tlx, q.tly, q.trx, q.try_, q.brx, q.bry, q.blx, q.bly, rcTex);
+	};
+	function Cnds() {};
+	Cnds.prototype.OnURLLoaded = function ()
+	{
+		return true;
+	};
+	pluginProto.cnds = new Cnds();
+	function Acts() {};
+	Acts.prototype.SetEffect = function (effect)
+	{
+		this.blend_mode = effect;
+		this.compositeOp = cr.effectToCompositeOp(effect);
+		cr.setGLBlend(this, effect, this.runtime.gl);
+		this.runtime.redraw = true;
+	};
+	Acts.prototype.LoadURL = function (url_, crossOrigin_)
+	{
+		var img = new Image();
+		var self = this;
+		img.onload = function ()
+		{
+			self.texture_img = img;
+			if (self.runtime.glwrap)
+			{
+				if (self.has_own_texture && self.webGL_texture)
+					self.runtime.glwrap.deleteTexture(self.webGL_texture);
+				self.webGL_texture = self.runtime.glwrap.loadTexture(img, true, self.runtime.linearSampling);
+			}
+			else
+			{
+				self.pattern = self.runtime.ctx.createPattern(img, "repeat");
+			}
+			self.has_own_texture = true;
+			self.runtime.redraw = true;
+			self.runtime.trigger(cr.plugins_.TiledBg.prototype.cnds.OnURLLoaded, self);
+		};
+		if (url_.substr(0, 5) !== "data:" && crossOrigin_ === 0)
+			img.crossOrigin = "anonymous";
+		this.runtime.setImageSrc(img, url_);
+	};
+	pluginProto.acts = new Acts();
+	function Exps() {};
+	Exps.prototype.ImageWidth = function (ret)
+	{
+		ret.set_float(this.texture_img.width);
+	};
+	Exps.prototype.ImageHeight = function (ret)
+	{
+		ret.set_float(this.texture_img.height);
+	};
+	pluginProto.exps = new Exps();
+}());
+;
+;
 cr.plugins_.Touch = function(runtime)
 {
 	this.runtime = runtime;
@@ -19985,16 +20566,19 @@ cr.behaviors.jumpthru = function(runtime)
 	behaviorProto.acts = new Acts();
 }());
 cr.getObjectRefTable = function () { return [
+	cr.plugins_.AJAX,
 	cr.plugins_.CSS_import,
 	cr.plugins_.Button,
 	cr.plugins_.Keyboard,
+	cr.plugins_.Text,
+	cr.plugins_.TiledBg,
 	cr.plugins_.Sprite,
 	cr.plugins_.Touch,
-	cr.plugins_.Text,
 	cr.behaviors.Platform,
 	cr.behaviors.jumpthru,
 	cr.system_object.prototype.cnds.OnLayoutStart,
 	cr.system_object.prototype.acts.SetVar,
+	cr.system_object.prototype.acts.SetLayerOpacity,
 	cr.plugins_.Sprite.prototype.cnds.CompareY,
 	cr.plugins_.Sprite.prototype.exps.Y,
 	cr.system_object.prototype.cnds.Compare,
@@ -20002,6 +20586,12 @@ cr.getObjectRefTable = function () { return [
 	cr.system_object.prototype.acts.CreateObject,
 	cr.system_object.prototype.exps.random,
 	cr.system_object.prototype.exps.layoutwidth,
+	cr.system_object.prototype.cnds.CompareVar,
+	cr.plugins_.Sprite.prototype.acts.Spawn,
+	cr.system_object.prototype.acts.SubVar,
+	cr.behaviors.Platform.prototype.acts.SetJumpStrength,
+	cr.plugins_.Sprite.prototype.acts.SetAnimFrame,
+	cr.behaviors.Platform.prototype.acts.SetGravity,
 	cr.system_object.prototype.cnds.EveryTick,
 	cr.system_object.prototype.acts.Scroll,
 	cr.behaviors.Platform.prototype.cnds.IsOnFloor,
@@ -20011,7 +20601,6 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Sprite.prototype.acts.Destroy,
 	cr.plugins_.Sprite.prototype.exps.UID,
 	cr.system_object.prototype.acts.AddVar,
-	cr.system_object.prototype.cnds.CompareVar,
 	cr.system_object.prototype.acts.GoToLayout,
 	cr.plugins_.Sprite.prototype.cnds.CompareX,
 	cr.plugins_.Sprite.prototype.acts.SetX,
@@ -20023,6 +20612,15 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Touch.prototype.cnds.CompareOrientation,
 	cr.plugins_.Text.prototype.acts.SetText,
 	cr.system_object.prototype.exps.round,
-	cr.plugins_.Button.prototype.cnds.OnClicked
+	cr.plugins_.Sprite.prototype.cnds.OnCollision,
+	cr.behaviors.Platform.prototype.cnds.IsFalling,
+	cr.system_object.prototype.acts.Wait,
+	cr.system_object.prototype.cnds.Every,
+	cr.plugins_.TiledBg.prototype.cnds.CompareY,
+	cr.plugins_.TiledBg.prototype.acts.SetY,
+	cr.plugins_.Button.prototype.cnds.OnClicked,
+	cr.plugins_.AJAX.prototype.acts.Request,
+	cr.plugins_.AJAX.prototype.cnds.OnComplete,
+	cr.plugins_.AJAX.prototype.exps.LastData
 ];};
 

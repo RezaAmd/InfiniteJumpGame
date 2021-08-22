@@ -1,5 +1,5 @@
 ﻿{
-	"version": 1629636345,
+	"version": 1629652649,
 	"fileList": [
 		"data.js",
 		"c2runtime.js",
@@ -8,12 +8,27 @@
 		"images/player-sheet0.png",
 		"images/player-sheet1.png",
 		"images/platform-sheet0.png",
+		"images/platform-sheet1.png",
+		"images/spring-sheet0.png",
+		"images/spring-sheet1.png",
+		"images/spring-sheet2.png",
+		"images/sign_img-sheet0.png",
+		"images/sign_img-sheet1.png",
+		"images/deepbackground.png",
+		"images/bg_layer-sheet0.png",
+		"images/bg_layer2-sheet0.png",
+		"images/bg_layer3-sheet0.png",
+		"images/deepstars.png",
+		"images/fade_circle-sheet0.png",
+		"images/sunsheet-sheet0.png",
+		"images/stars1-sheet0.png",
+		"images/stars2-sheet0.png",
+		"loading-logo.png",
 		"icon-16.png",
 		"icon-32.png",
-		"icon-114.png",
-		"icon-128.png",
+		"icon-115.png",
+		"icon-129.png",
 		"icon-256.png",
-		"loading-logo.png",
 		"style.css"
 	]
 }
