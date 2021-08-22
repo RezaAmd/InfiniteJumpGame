@@ -1,6 +1,15 @@
 html, input, label {
     font-family: "IranSans" !important;
+    text-align: right;
 }
+
+label {
+    direction: rtl;
+}
+
+    label input {
+        margin-left: 5px;
+    }
 
 #start_btn {
     color: #ffffff;

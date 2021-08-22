@@ -1,5 +1,5 @@
 ﻿{
-	"version": 1629652649,
+	"version": 1629668118,
 	"fileList": [
 		"data.js",
 		"c2runtime.js",
@@ -23,12 +23,16 @@
 		"images/sunsheet-sheet0.png",
 		"images/stars1-sheet0.png",
 		"images/stars2-sheet0.png",
+		"images/right_btn-sheet0.png",
+		"images/guid_frame-sheet0.png",
 		"loading-logo.png",
 		"icon-16.png",
 		"icon-32.png",
 		"icon-115.png",
 		"icon-129.png",
 		"icon-256.png",
+		"icon-114.png",
+		"icon-128.png",
 		"style.css"
 	]
 }
